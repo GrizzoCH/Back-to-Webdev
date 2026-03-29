@@ -79,6 +79,20 @@ def update_product(product_id, name, description):
     )
 
 
+def create_inventory(product_id, quantity):
+    execute_sql(
+        "INSERT INTO inventory (product_id, quantity) VALUES (?, ?)",
+        (product_id, int(quantity)),
+    )
+
+
+def safe_rerun():
+    try:
+        st.experimental_rerun()
+    except Exception:
+        pass
+
+
 def open_modal(label):
     try:
         return st.modal(label)
@@ -119,7 +133,7 @@ def render_products_page():
                         create_product(name, description)
                         st.success("Product created.")
                         st.session_state.show_add_product_modal = False
-                        st.experimental_rerun()
+                        safe_rerun()
 
     if st.session_state.get("show_edit_product_modal", False):
         product_id = st.session_state.get("edit_product_id")
@@ -138,7 +152,7 @@ def render_products_page():
                             update_product(product_id, name, description)
                             st.success("Product updated.")
                             st.session_state.show_edit_product_modal = False
-                            st.experimental_rerun()
+                            safe_rerun()
         else:
             st.session_state.show_edit_product_modal = False
 
@@ -149,6 +163,21 @@ def render_inventory_page():
     inventory = get_inventory()
     if inventory.empty:
         st.info("No inventory records found.")
+        products = get_products()
+        if products.empty:
+            st.info("Add products first before creating inventory records.")
+        else:
+            st.subheader("Add first inventory record")
+            with st.form("add_inventory_form"):
+                choices = [f"{row.name} ({row.uuid[:8]})" for _, row in products.iterrows()]
+                selected_index = st.selectbox("Product", list(range(len(choices))), format_func=lambda i: choices[i])
+                quantity = st.number_input("Quantity", min_value=0, step=1, value=0)
+                submitted = st.form_submit_button("Create inventory record")
+                if submitted:
+                    product_id = int(products.iloc[selected_index].id)
+                    create_inventory(product_id, quantity)
+                    st.success("Inventory record created.")
+                    safe_rerun()
     else:
         st.dataframe(inventory[['product', 'quantity']], use_container_width=True)
 
